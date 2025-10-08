@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// Para simplificar, coloquei o modelo de Produto aqui.
-// O ideal é que ele fique no seu arquivo models/models.dart
+// Modelo de Produto
 class Product {
   final String id;
   final String name;
@@ -22,7 +21,6 @@ class Product {
       id: json['id']?.toString() ?? '',
       name: json['name'] ?? 'Produto Inválido',
       price: (json['price'] as num?)?.toDouble() ?? 0.0,
-      // Valor padrão, já que não estamos buscando a categoria ainda
       categoryName: json['categorias']?['name'] ?? 'Sem Categoria',
     );
   }
@@ -30,13 +28,11 @@ class Product {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   await Supabase.initialize(
     url: 'https://fhbxegpnztkzqxpkbgkx.supabase.co',
     anonKey:
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoYnhlZ3BuenRrenF4cGtiZ2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyODU4OTMsImV4cCI6MjA3Mzg2MTg5M30.SIEamzBeh_NcOIes-ULqU0RjGV1u3w8NCdgKTACoLjI',
+        'eyJhbGciOiJIJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoYnhlZ3BuenRrenF4cGtiZ2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyODU4OTMsImV4cCI6MjA3Mzg2MTg5M30.SIEamzBeh_NcOIes-ULqU0RjGV1u3w8NCdgKTACoLjI',
   );
-
   runApp(const MyApp());
 }
 
@@ -61,52 +57,30 @@ final _router = GoRouter(
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
-
   @override
   Widget build(BuildContext context) {
     return MaterialApp.router(
       routerConfig: _router,
       title: 'Delivery App',
-      theme: ThemeData(
-          primarySwatch: Colors.deepPurple,
-          scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-          appBarTheme: const AppBarTheme(
-            elevation: 0,
-            backgroundColor: Colors.white,
-            foregroundColor: Colors.black,
-            titleTextStyle: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black),
-          )),
+      theme: ThemeData(primarySwatch: Colors.deepPurple),
     );
   }
 }
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('VERSÃO DE TESTE'),
-      ),
+      appBar: AppBar(title: const Text('VERSÃO DE TESTE')), // Título que testamos
       body: const Center(
-        child: Padding(
-          padding: EdgeInsets.all(16.0),
-          child: Text(
-            'Para ver um cardápio, acesse a URL com o nome da empresa.\nExemplo: /VillaBistro',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18),
-          ),
-        ),
+        child: Text('Página inicial. Use a URL /nome-da-empresa para ver um cardápio.'),
       ),
     );
   }
 }
 
-// TELA DO CARDÁPIO AGORA COM A LÓGICA DE BUSCA DE DADOS
+// TELA DO CARDÁPIO COM LÓGICA FINAL
 class CompanyMenuScreen extends StatefulWidget {
   final String companyName;
   const CompanyMenuScreen({super.key, required this.companyName});
@@ -125,10 +99,11 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
   }
 
   Future<List<Product>> _fetchProducts() async {
+    // 1. Encontra o ID da empresa IGNORANDO MAIÚSCULAS/MINÚSCULAS
     final companyResponse = await supabase
         .from('companies')
         .select('id')
-        .eq('name', widget.companyName)
+        .ilike('name', widget.companyName) // MUDANÇA IMPORTANTE: ilike em vez de eq
         .single();
         
     final companyId = companyResponse['id'];
@@ -143,7 +118,6 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
         .eq('company_id', companyId);
 
     final productList = productsResponse.map<Product>((item) => Product.fromJson(item)).toList();
-
     return productList;
   }
 
@@ -176,14 +150,7 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  trailing: Text(
-                    'R\$ ${product.price.toStringAsFixed(2)}',
-                    style: TextStyle(
-                      color: Theme.of(context).primaryColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
+                  trailing: Text('R\$ ${product.price.toStringAsFixed(2)}'),
                 ),
               );
             },
@@ -194,35 +161,16 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
   }
 }
 
-
 class NotFoundScreen extends StatelessWidget {
   const NotFoundScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Página não encontrada'),
-      ),
+      appBar: AppBar(title: const Text('Página não encontrada')),
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              '404',
-              style: TextStyle(fontSize: 80, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'A página que você procurou não existe.',
-              style: TextStyle(fontSize: 18),
-            ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: () => context.go('/'),
-              child: const Text('Voltar para a página inicial'),
-            ),
-          ],
+        child: ElevatedButton(
+          onPressed: () => context.go('/'),
+          child: const Text('Voltar para a página inicial'),
         ),
       ),
     );
