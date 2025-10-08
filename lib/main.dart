@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 Future<void> main() async {
@@ -12,22 +13,126 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
+final supabase = Supabase.instance.client;
+
+final _router = GoRouter(
+  errorBuilder: (context, state) => const NotFoundScreen(),
+  routes: [
+    GoRoute(
+      path: '/',
+      builder: (context, state) => const HomePage(),
+    ),
+    GoRoute(
+      path: '/:companyName',
+      builder: (context, state) {
+        final companyName = state.pathParameters['companyName'] ?? 'desconhecida';
+        return CompanyMenuScreen(companyName: companyName);
+      },
+    ),
+  ],
+);
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
+      routerConfig: _router,
       title: 'Delivery App',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Cardápio Delivery')),
-        body: const Center(child: Text('Página inicial do seu app de delivery!')),
+        primarySwatch: Colors.deepPurple,
+        scaffoldBackgroundColor: const Color(0xFFF5F5F5),
+        appBarTheme: const AppBarTheme(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.black
+          ),
+        )
       ),
     );
   }
 }
 
-final supabase = Supabase.instance.client;
+class HomePage extends StatelessWidget {
+  const HomePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Bem-vindo'),
+      ),
+      body: const Center(
+        child: Padding(
+          padding: EdgeInsets.all(16.0),
+          child: Text(
+            'Para ver um cardápio, acesse a URL com o nome da empresa.\nExemplo: /VillaBistro',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class CompanyMenuScreen extends StatelessWidget {
+  final String companyName;
+  const CompanyMenuScreen({super.key, required this.companyName});
+
+  @override
+  Widget build(BuildContext context) {
+    // AQUI VOCÊ FARÁ A LÓGICA PARA BUSCAR OS DADOS DA EMPRESA E PRODUTOS
+    // Por enquanto, apenas exibimos o nome para confirmar que a rota funciona.
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Cardápio de ${companyName.toUpperCase()}"),
+      ),
+      body: Center(
+        child: Text(
+          'Carregando produtos de: $companyName...',
+          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
+
+class NotFoundScreen extends StatelessWidget {
+  const NotFoundScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Página não encontrada'),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text(
+              '404',
+              style: TextStyle(fontSize: 80, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'A página que você procurou não existe.',
+              style: TextStyle(fontSize: 18),
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton(
+              onPressed: () => context.go('/'),
+              child: const Text('Voltar para a página inicial'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
