@@ -3,10 +3,12 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 
-// Importa as novas telas
 import 'screens/home_screen.dart';
 import 'screens/company_menu_screen.dart';
 import 'screens/not_found_screen.dart';
+// Importe a nova tela que vamos criar
+import 'screens/product_detail_screen.dart';
+import 'models/models.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,6 +37,17 @@ final _router = GoRouter(
         final companyName = state.pathParameters['companyName'] ?? 'desconhecida';
         return CompanyMenuScreen(companyName: companyName);
       },
+      // Rota aninhada para os detalhes do produto
+      routes: [
+        GoRoute(
+          path: ':productId', // O path completo será "/:companyName/:productId"
+          builder: (context, state) {
+            // Pegamos o objeto Product que foi passado durante a navegação
+            final product = state.extra as Product;
+            return ProductDetailScreen(product: product);
+          },
+        ),
+      ],
     ),
   ],
 );

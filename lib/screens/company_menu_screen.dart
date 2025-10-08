@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/models.dart';
 
@@ -149,7 +150,8 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
             ),
             child: InkWell(
               onTap: () {
-                // Futuramente, navegar para a tela de detalhes do produto
+                // NAVEGAÇÃO IMPLEMENTADA AQUI
+                context.go('/${widget.companyName}/${product.id}', extra: product);
               },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
