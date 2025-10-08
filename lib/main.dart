@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 
 // Modelo de Produto
 class Product {
@@ -28,10 +29,14 @@ class Product {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Garante que o go_router use a URL limpa (ex: /teds)
+  usePathUrlStrategy();
+
   await Supabase.initialize(
     url: 'https://fhbxegpnztkzqxpkbgkx.supabase.co',
     anonKey:
-        'eyJhbGciOiJIJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoYnhlZ3BuenRrenF4cGtiZ2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyODU4OTMsImV4cCI6MjA3Mzg2MTg5M30.SIEamzBeh_NcOIes-ULqU0RjGV1u3w8NCdgKTACoLjI',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoYnhlZ3BuenRrenF4cGtiZ2t4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgyODU4OTMsImV4cCI6MjA3Mzg2MTg5M30.SIEamzBeh_NcOIes-ULqU0RjGV1u3w8NCdgKTACoLjI',
   );
   runApp(const MyApp());
 }
@@ -72,7 +77,7 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('VERSÃO DE TESTE')), // Título que testamos
+      appBar: AppBar(title: const Text('Delivery Villa')),
       body: const Center(
         child: Text('Página inicial. Use a URL /nome-da-empresa para ver um cardápio.'),
       ),
@@ -80,7 +85,6 @@ class HomePage extends StatelessWidget {
   }
 }
 
-// TELA DO CARDÁPIO COM LÓGICA FINAL
 class CompanyMenuScreen extends StatefulWidget {
   final String companyName;
   const CompanyMenuScreen({super.key, required this.companyName});
@@ -99,11 +103,10 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
   }
 
   Future<List<Product>> _fetchProducts() async {
-    // 1. Encontra o ID da empresa IGNORANDO MAIÚSCULAS/MINÚSCULAS
     final companyResponse = await supabase
         .from('companies')
         .select('id')
-        .ilike('name', widget.companyName) // MUDANÇA IMPORTANTE: ilike em vez de eq
+        .ilike('name', widget.companyName) // Usando ilike para ignorar maiúsculas/minúsculas
         .single();
         
     final companyId = companyResponse['id'];
