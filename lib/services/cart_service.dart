@@ -1,35 +1,77 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 import '../models/models.dart';
 
 class CartService {
-  // ValueNotifier é uma forma simples de notificar a UI quando o carrinho muda.
-  final ValueNotifier<List<CartItem>> items = ValueNotifier([]);
+  final ValueNotifier<List<CartItem>> cartNotifier = ValueNotifier([]);
+  final Uuid _uuid = const Uuid();
 
   void addToCart(Product product, int quantity, Set<Adicional> selectedAdicionais) {
-    // Converte o Set<Adicional> para a lista de CartItemAdicional que o modelo espera
-    final adicionaisDoItem = selectedAdicionais.map((adicional) {
-      return CartItemAdicional(adicional: adicional, quantity: 1); // Assumindo quantidade 1 para adicionais
-    }).toList();
+    final List<CartItem> currentCart = List.from(cartNotifier.value);
 
-    // Cria um novo item de carrinho
-    final newItem = CartItem(
-      // ID único para cada item no carrinho, pode ser melhorado depois
-      id: DateTime.now().toIso8601String(),
-      product: product,
-      quantity: quantity,
-      selectedAdicionais: adicionaisDoItem,
-    );
+    final List<CartItemAdicional> adicionaisList = selectedAdicionais
+        .map((ad) => CartItemAdicional(adicional: ad, quantity: 1))
+        .toList();
 
-    // Adiciona o novo item à lista e notifica os listeners
-    items.value = [...items.value, newItem];
-    
-    // Imprime no console para vermos o que está no carrinho (para debug)
-    debugPrint("Item adicionado! Itens no carrinho: ${items.value.length}");
-    for (var item in items.value) {
-      debugPrint("- ${item.product.name} (x${item.quantity})");
+    adicionaisList.sort((a, b) => a.adicional.id.compareTo(b.adicional.id));
+
+    final String newItemSignature = _generateItemSignature(product.id, adicionaisList);
+
+    int existingItemIndex = currentCart.indexWhere(
+        (item) => _generateItemSignature(item.product.id, item.selectedAdicionais) == newItemSignature);
+
+    if (existingItemIndex != -1) {
+      final existingItem = currentCart[existingItemIndex];
+      existingItem.quantity += quantity;
+    } else {
+      currentCart.add(
+        CartItem(
+          id: _uuid.v4(),
+          product: product,
+          quantity: quantity,
+          selectedAdicionais: adicionaisList,
+        ),
+      );
     }
+    cartNotifier.value = currentCart;
+  }
+
+  void updateItemQuantity(String cartItemId, int newQuantity) {
+    final List<CartItem> currentCart = List.from(cartNotifier.value);
+    int itemIndex = currentCart.indexWhere((item) => item.id == cartItemId);
+
+    if (itemIndex != -1) {
+      if (newQuantity > 0) {
+        currentCart[itemIndex].quantity = newQuantity;
+      } else {
+        currentCart.removeAt(itemIndex);
+      }
+      cartNotifier.value = currentCart;
+    }
+  }
+
+  void removeItem(String cartItemId) {
+    final List<CartItem> currentCart = List.from(cartNotifier.value);
+    currentCart.removeWhere((item) => item.id == cartItemId);
+    cartNotifier.value = currentCart;
+  }
+
+  void clearCart() {
+    cartNotifier.value = [];
+  }
+
+  double get totalCartPrice {
+    return cartNotifier.value.fold(0.0, (sum, item) => sum + item.totalPrice);
+  }
+
+  int get totalItemCount {
+    return cartNotifier.value.fold(0, (sum, item) => sum + item.quantity);
+  }
+
+  String _generateItemSignature(String productId, List<CartItemAdicional> adicionais) {
+    final adicionalIds = adicionais.map((e) => e.adicional.id).toList()..sort();
+    return '$productId-${adicionalIds.join(',')}';
   }
 }
 
-// Criamos uma instância global única do nosso serviço
 final cartService = CartService();

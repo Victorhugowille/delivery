@@ -1,14 +1,16 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart'; // <-- VOLTOU AO NORMAL
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/models.dart';
+import '../models/models.dart' as model; // <-- NOVA ABORDAGEM APLICADA AQUI
+import '../services/cart_service.dart';
+import '../services/theme_service.dart';
 
 class MenuData {
-  final List<Category> categories;
-  final List<Product> products;
+  final List<model.Category> categories;
+  final List<model.Product> products;
   MenuData({required this.categories, required this.products});
 }
-
 final supabase = Supabase.instance.client;
 
 class CompanyMenuScreen extends StatefulWidget {
@@ -32,16 +34,24 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
   Future<MenuData> _fetchMenuData() async {
     final companyResponse = await supabase
         .from('companies')
-        .select('id')
-        .ilike('name', widget.companyName)
+        .select()
+        .ilike('slug', widget.companyName)
         .single();
-        
-    final companyId = companyResponse['id'];
+    
+    final company = model.Company.fromJson(companyResponse); // <-- USANDO O PREFIXO
 
-    if (companyId == null) {
+    debugPrint("--- DEBUG THEME ---");
+    debugPrint("0. Buscando dados da empresa: ${company.name}");
+    debugPrint("0.1. Valor de 'color_site' vindo do Supabase: '${company.colorSite}'");
+    
+    themeService.updateTheme(company.colorSite);
+
+    final companyId = company.id;
+
+    if (companyId.isEmpty) {
       throw 'Empresa não encontrada: ${widget.companyName}';
     }
-
+    
     final categoriesFuture = supabase
         .from('categorias')
         .select()
@@ -57,17 +67,76 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
     final results = await Future.wait([categoriesFuture, productsFuture]);
 
     final categoryList = (results[0] as List)
-        .map<Category>((item) => Category.fromJson(item))
+        .map<model.Category>((item) => model.Category.fromJson(item)) // <-- USANDO O PREFIXO
         .toList();
 
     final productList = (results[1] as List)
-        .map<Product>((item) => Product.fromJson(item))
+        .map<model.Product>((item) => model.Product.fromJson(item)) // <-- USANDO O PREFIXO
         .toList();
 
     return MenuData(categories: categoryList, products: productList);
   }
+  
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text("Cardápio de ${widget.companyName.toUpperCase()}"),
+      ),
+      body: FutureBuilder<MenuData>(
+        future: _menuDataFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+                child: Text("Erro ao carregar o cardápio: ${snapshot.error}"));
+          }
+          if (!snapshot.hasData || snapshot.data!.categories.isEmpty) {
+            return const Center(
+                child:
+                    Text("Nenhuma categoria encontrada para esta empresa."));
+          }
 
-  Widget _buildCategoryList(List<Category> categories, BuildContext context) {
+          final menuData = snapshot.data!;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 8.0),
+                child: Text(
+                  'Categorias',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.bold),
+                ),
+              ),
+              _buildCategoryList(menuData.categories, context),
+              _buildProductGrid(menuData.products),
+            ],
+          );
+        },
+      ),
+      floatingActionButton: ValueListenableBuilder<List<model.CartItem>>( // <-- USANDO O PREFIXO
+        valueListenable: cartService.cartNotifier,
+        builder: (context, cartItems, child) {
+          if (cartItems.isEmpty) {
+            return const SizedBox.shrink();
+          }
+          return FloatingActionButton.extended(
+            onPressed: () => context.go('/${widget.companyName}/cart'),
+            label: Text('Ver Carrinho (${cartService.totalItemCount})'),
+            icon: const Icon(Icons.shopping_cart),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoryList(List<model.Category> categories, BuildContext context) { // <-- USANDO O PREFIXO
     return SizedBox(
       height: 50,
       child: ListView.builder(
@@ -93,7 +162,7 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
               ),
             );
           }
-          
+
           final category = categories[index - 1];
           final isSelected = _selectedCategoryId == category.id;
           return Padding(
@@ -116,22 +185,22 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
     );
   }
 
-  Widget _buildProductGrid(List<Product> allProducts) {
+  Widget _buildProductGrid(List<model.Product> allProducts) { // <-- USANDO O PREFIXO
+    // CORREÇÃO DE SINTAXE APLICADA AQUI
     final filteredProducts = _selectedCategoryId == null
-      ? allProducts
-      : allProducts.where((p) => p.categoryId == _selectedCategoryId).toList();
+        ? allProducts
+        : allProducts.where((p) => p.categoryId == _selectedCategoryId).toList();
 
     if (filteredProducts.isEmpty) {
       return const Expanded(
-        child: Center(
-          child: Text("Nenhum produto encontrado nesta categoria.", style: TextStyle(fontSize: 16))
-        )
-      );
+          child: Center(
+              child: Text("Nenhum produto encontrado nesta categoria.",
+                  style: TextStyle(fontSize: 16))));
     }
 
     return Expanded(
       child: GridView.builder(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
           maxCrossAxisExtent: 220,
           mainAxisSpacing: 20,
@@ -150,25 +219,30 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
             ),
             child: InkWell(
               onTap: () {
-                // NAVEGAÇÃO IMPLEMENTADA AQUI
-                context.go('/${widget.companyName}/${product.id}', extra: product);
+                context.go('/${widget.companyName}/${product.id}');
               },
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
-                    child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                    child: product.imageUrl != null &&
+                            product.imageUrl!.isNotEmpty
                         ? Image.network(
                             product.imageUrl!,
                             fit: BoxFit.cover,
                             errorBuilder: (context, error, stackTrace) {
-                              return Container(alignment: Alignment.center, color: Colors.grey[200], child: const Icon(Icons.fastfood, size: 50, color: Colors.grey));
+                              return Container(
+                                  alignment: Alignment.center,
+                                  color: Colors.grey[200],
+                                  child: const Icon(Icons.fastfood,
+                                      size: 50, color: Colors.grey));
                             },
                           )
                         : Container(
                             alignment: Alignment.center,
                             color: Colors.grey[200],
-                            child: const Icon(Icons.fastfood, size: 50, color: Colors.grey),
+                            child: const Icon(Icons.fastfood,
+                                size: 50, color: Colors.grey),
                           ),
                   ),
                   Padding(
@@ -176,7 +250,7 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                         Text(
+                        Text(
                           product.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.bold,
@@ -188,7 +262,8 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
                         const SizedBox(height: 4),
                         Text(
                           product.categoryName,
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[600]),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -204,58 +279,22 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
                       ],
                     ),
                   ),
-                   if (product.isSoldOut)
+                  if (product.isSoldOut)
                     Container(
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       color: Colors.redAccent.withOpacity(0.85),
                       child: const Text(
                         'ESGOTADO',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
                       ),
                     ),
                 ],
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text("Cardápio de ${widget.companyName.toUpperCase()}"),
-      ),
-      body: FutureBuilder<MenuData>(
-        future: _menuDataFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text("Erro ao carregar o cardápio: ${snapshot.error}"));
-          }
-          if (!snapshot.hasData || snapshot.data!.categories.isEmpty) {
-            return const Center(child: Text("Nenhuma categoria encontrada para esta empresa."));
-          }
-
-          final menuData = snapshot.data!;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 16.0, top: 16.0, bottom: 8.0),
-                child: Text(
-                  'Categorias',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              _buildCategoryList(menuData.categories, context),
-              _buildProductGrid(menuData.products),
-            ],
           );
         },
       ),

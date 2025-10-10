@@ -1,7 +1,31 @@
 import 'package:flutter/material.dart';
 
-// ATENÇÃO: Corrigi o tipo do id de Order e pedidoId de DeliveryInfo para 'int'
-// para ser compatível com seu banco de dados (que usa 'bigint').
+// NOVA CLASSE ADICIONADA
+class Company {
+  final String id;
+  final String name;
+  final String slug;
+  final String? imageUrl;
+  final String? colorSite; // <-- NOME CORRIGIDO (sem o _)
+
+  Company({
+    required this.id,
+    required this.name,
+    required this.slug,
+    this.imageUrl,
+    this.colorSite, // <-- NOME CORRIGIDO
+  });
+
+  factory Company.fromJson(Map<String, dynamic> json) {
+    return Company(
+      id: json['id']?.toString() ?? '',
+      name: json['name'] ?? 'Nome Inválido',
+      slug: json['slug'] ?? '',
+      imageUrl: json['image_url'],
+      colorSite: json['color_site'], // <-- Lendo o nome da coluna do banco
+    );
+  }
+}
 
 class SavedReport {
   final String id;
