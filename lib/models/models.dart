@@ -1,19 +1,59 @@
 import 'package:flutter/material.dart';
 
 // NOVA CLASSE ADICIONADA
+class ClienteDelivery {
+  final String? id;
+  final String name;
+  final String phone;
+  final String addressStreet;
+  final String? addressNumber;
+  final String? addressNeighborhood;
+  final String? addressCity;
+  final String? addressState;
+  final String? addressZipCode;
+  final String? addressComplement;
+
+  ClienteDelivery({
+    this.id,
+    required this.name,
+    required this.phone,
+    required this.addressStreet,
+    this.addressNumber,
+    this.addressNeighborhood,
+    this.addressCity,
+    this.addressState,
+    this.addressZipCode,
+    this.addressComplement,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'phone': phone,
+      'address_street': addressStreet,
+      'address_number': addressNumber,
+      'address_neighborhood': addressNeighborhood,
+      'address_city': addressCity,
+      'address_state': addressState,
+      'address_zip_code': addressZipCode,
+      'address_complement': addressComplement,
+    };
+  }
+}
+
 class Company {
   final String id;
   final String name;
   final String slug;
   final String? imageUrl;
-  final String? colorSite; // <-- NOME CORRIGIDO (sem o _)
+  final String? colorSite;
 
   Company({
     required this.id,
     required this.name,
     required this.slug,
     this.imageUrl,
-    this.colorSite, // <-- NOME CORRIGIDO
+    this.colorSite,
   });
 
   factory Company.fromJson(Map<String, dynamic> json) {
@@ -22,7 +62,7 @@ class Company {
       name: json['name'] ?? 'Nome Inválido',
       slug: json['slug'] ?? '',
       imageUrl: json['image_url'],
-      colorSite: json['color_site'], // <-- Lendo o nome da coluna do banco
+      colorSite: json['color_site'],
     );
   }
 }

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/models.dart';
 import '../services/cart_service.dart';
 
 class CartScreen extends StatelessWidget {
-  const CartScreen({super.key});
+  final String companyName;
+  const CartScreen({super.key, required this.companyName});
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +43,7 @@ class CartScreen extends StatelessWidget {
           );
         },
       ),
-      bottomNavigationBar: _buildBottomBar(),
+      bottomNavigationBar: _buildBottomBar(context),
     );
   }
 
@@ -148,7 +150,7 @@ class CartScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBottomBar() {
+  Widget _buildBottomBar(BuildContext context) {
     return ValueListenableBuilder<List<CartItem>>(
       valueListenable: cartService.cartNotifier,
       builder: (context, cartItems, child) {
@@ -203,6 +205,8 @@ class CartScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
+                    // MUDANÇA AQUI
+                    context.go('/$companyName/checkout');
                   },
                   child: const Text(
                     'Finalizar Pedido',
