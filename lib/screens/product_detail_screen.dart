@@ -37,13 +37,57 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Future<List<GrupoAdicional>> _fetchGruposAdicionais() async {
+    // CORREÇÃO DE ORDENAÇÃO AQUI
     final response = await Supabase.instance.client
         .from('grupos_adicionais')
         .select('*, adicionais(*)')
         .eq('produto_id', widget.productId)
-        .order('display_order');
+        .order('display_order', ascending: true); // Garante a ordenação dos grupos
 
     return response.map((item) => GrupoAdicional.fromJson(item)).toList();
+  }
+
+  // MUDANÇA 1: FUNÇÃO DE VALIDAÇÃO
+  String? _validateSelections(List<GrupoAdicional> grupos) {
+    for (final grupo in grupos) {
+      final selectedCountInGroup = _selectedAdicionais
+          .where((adicional) => adicional.grupoId == grupo.id)
+          .length;
+
+      if (selectedCountInGroup < grupo.minQuantity) {
+        return 'Para o grupo "${grupo.name}", você precisa selecionar pelo menos ${grupo.minQuantity} item(ns).';
+      }
+
+      if (grupo.maxQuantity != null &&
+          selectedCountInGroup > grupo.maxQuantity!) {
+        return 'O limite para o grupo "${grupo.name}" é de ${grupo.maxQuantity} item(ns).';
+      }
+    }
+    return null; // Tudo certo
+  }
+
+  void _handleAddToCart(Product product, List<GrupoAdicional> grupos, {required bool goToCart}) {
+    final validationError = _validateSelections(grupos);
+
+    if (validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(validationError),
+          backgroundColor: Colors.red.shade700,
+        ),
+      );
+      return;
+    }
+
+    cartService.addToCart(product, _quantity, _selectedAdicionais);
+    
+    final companyName = GoRouterState.of(context).pathParameters['companyName'];
+
+    if (goToCart && companyName != null) {
+      context.go('/$companyName/cart');
+    } else {
+      context.pop();
+    }
   }
 
   @override
@@ -101,28 +145,36 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
                     final grupos = snapshotGrupos.data ?? [];
 
-                    return ListView(
-                      padding: const EdgeInsets.all(16.0),
+                    return Column(
                       children: [
-                        Text(product.name,
-                            style: Theme.of(context)
-                                .textTheme
-                                .headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Text('R\$ ${product.price.toStringAsFixed(2)}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(
-                                    color: Theme.of(context).primaryColor,
-                                    fontWeight: FontWeight.bold)),
-                        if (grupos.isNotEmpty) ...[
-                          const Divider(height: 32, thickness: 1),
-                          ...grupos
-                              .map((grupo) => _buildGrupoAdicional(grupo))
-                              .toList(),
-                        ]
+                        Expanded(
+                          child: ListView(
+                            padding: const EdgeInsets.all(16.0),
+                            children: [
+                              Text(product.name,
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .headlineSmall
+                                      ?.copyWith(fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Text('R\$ ${product.price.toStringAsFixed(2)}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .titleLarge
+                                      ?.copyWith(
+                                          color: Theme.of(context).primaryColor,
+                                          fontWeight: FontWeight.bold)),
+                              if (grupos.isNotEmpty) ...[
+                                const Divider(height: 32, thickness: 1),
+                                ...grupos
+                                    .map((grupo) => _buildGrupoAdicional(grupo))
+                                    .toList(),
+                              ]
+                            ],
+                          ),
+                        ),
+                        // MUDANÇA 2: Passa a lista de grupos para o BottomBar
+                        _buildBottomBar(product, grupos),
                       ],
                     );
                   },
@@ -130,21 +182,41 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
               ),
             ],
           ),
-          bottomNavigationBar: _buildBottomBar(product),
         );
       },
     );
   }
 
   Widget _buildGrupoAdicional(GrupoAdicional grupo) {
+    // MUDANÇA 3: Exibe a regra na tela
+    String ruleText = 'Obrigatório: ${grupo.minQuantity}';
+    if (grupo.maxQuantity != null) {
+      ruleText += ' / Máximo: ${grupo.maxQuantity}';
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(grupo.name,
+        RichText(
+          text: TextSpan(
             style: Theme.of(context)
                 .textTheme
                 .titleMedium
-                ?.copyWith(fontWeight: FontWeight.bold)),
+                ?.copyWith(fontWeight: FontWeight.bold),
+            children: [
+              TextSpan(text: grupo.name),
+              TextSpan(
+                text: ' ($ruleText)',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.normal,
+                  fontStyle: FontStyle.italic,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 8),
         ...grupo.adicionais.map((adicional) {
           return CheckboxListTile(
@@ -167,7 +239,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  Widget _buildBottomBar(Product product) {
+  // MUDANÇA 4: Recebe a lista de grupos para poder validar
+  Widget _buildBottomBar(Product product, List<GrupoAdicional> grupos) {
     return Container(
       padding: const EdgeInsets.all(16.0).copyWith(bottom: 24.0),
       decoration: BoxDecoration(
@@ -200,37 +273,14 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    cartService.addToCart(
-                        product, _quantity, _selectedAdicionais);
-                    context.pop();
-                  },
-                  child: const Text('Continuar Comprando'),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {
-                    cartService.addToCart(
-                        product, _quantity, _selectedAdicionais);
-                    // Navega para o carrinho
-                    final companyName =
-                        GoRouterState.of(context).pathParameters['companyName'];
-                    if (companyName != null) {
-                      context.go('/$companyName/cart');
-                    } else {
-                      context.pop(); // Fallback
-                    }
-                  },
-                  child: const Text('Ir para o Carrinho'),
-                ),
-              ),
-            ],
+          // MUDANÇA 5: Chama a função de validação no clique
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: ElevatedButton(
+              onPressed: () => _handleAddToCart(product, grupos, goToCart: true),
+              child: const Text('Adicionar ao Carrinho'),
+            ),
           ),
         ],
       ),

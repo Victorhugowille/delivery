@@ -2,10 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class ThemeService {
-  // Cor padrão do aplicativo (Deep Orange)
   final Color _defaultColor = const Color(0xFFFF5722);
-  
-  // Agora o notifier guarda um objeto 'Color' simples
   late final ValueNotifier<Color> colorNotifier;
 
   ThemeService() {
@@ -21,7 +18,7 @@ class ThemeService {
       resetToDefault();
       return;
     }
-    
+
     Color newColor = _colorFromString(colorString);
     debugPrint("3. A string de cor foi convertida para o objeto Color: $newColor");
     colorNotifier.value = newColor;
@@ -33,25 +30,18 @@ class ThemeService {
   }
 
   Color _colorFromString(String colorString) {
-    final Map<String, Color> colorMap = {
-      'red': Colors.red,
-      'blue': Colors.blue,
-      'green': Colors.green,
-      'orange': Colors.orange,
-      'purple': Colors.purple,
-      'pink': Colors.pink,
-      'teal': Colors.teal,
-      'black': Colors.black,
-    };
-    if (colorMap.containsKey(colorString.toLowerCase())) {
-      return colorMap[colorString.toLowerCase()]!;
+    final cleanColorString = colorString.trim().toUpperCase();
+
+    if (cleanColorString.startsWith('#') && cleanColorString.length == 7) {
+      final hexString = cleanColorString.substring(1);
+      try {
+        return Color(int.parse('FF$hexString', radix: 16));
+      } catch (e) {
+        debugPrint("AVISO: Não foi possível converter o hex '$colorString'. Usando a cor padrão.");
+        return _defaultColor;
+      }
     }
 
-    if (colorString.startsWith('#') && colorString.length == 7) {
-      final hexString = colorString.substring(1);
-      return Color(int.parse('FF$hexString', radix: 16));
-    }
-    
     debugPrint("AVISO: O formato da cor '$colorString' não foi reconhecido. Usando a cor padrão.");
     return _defaultColor;
   }

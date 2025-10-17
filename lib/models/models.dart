@@ -1,8 +1,55 @@
 import 'package:flutter/material.dart';
 
-// NOVA CLASSE ADICIONADA
+// NOVA CLASSE PARA AS ZONAS DE ENTREGA
+class DeliveryZone {
+  final String id;
+  final String name;
+  final int radiusMeters;
+  final double fee;
+
+  DeliveryZone({
+    required this.id,
+    required this.name,
+    required this.radiusMeters,
+    required this.fee,
+  });
+
+  factory DeliveryZone.fromJson(Map<String, dynamic> json) {
+    return DeliveryZone(
+      id: json['id'] ?? '',
+      name: json['name'] ?? 'Zona desconhecida',
+      radiusMeters: json['radius_meters'] ?? 0,
+      fee: (json['fee'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+}
+
+// ### NOVA CLASSE ADICIONADA AQUI ###
+class DestaqueSite {
+  final int id;
+  final String companyId;
+  final String imageUrl;
+  final int slotNumber;
+
+  DestaqueSite({
+    required this.id,
+    required this.companyId,
+    required this.imageUrl,
+    required this.slotNumber,
+  });
+
+  factory DestaqueSite.fromJson(Map<String, dynamic> json) {
+    return DestaqueSite(
+      id: json['id'],
+      companyId: json['company_id'],
+      imageUrl: json['image_url'],
+      slotNumber: json['slot_number'],
+    );
+  }
+}
+
 class ClienteDelivery {
-  final String? id;
+  final int? id;
   final String name;
   final String phone;
   final String addressStreet;
@@ -12,6 +59,7 @@ class ClienteDelivery {
   final String? addressState;
   final String? addressZipCode;
   final String? addressComplement;
+  final String? userId;
 
   ClienteDelivery({
     this.id,
@@ -24,6 +72,7 @@ class ClienteDelivery {
     this.addressState,
     this.addressZipCode,
     this.addressComplement,
+    this.userId,
   });
 
   Map<String, dynamic> toJson() {
@@ -37,6 +86,7 @@ class ClienteDelivery {
       'address_state': addressState,
       'address_zip_code': addressZipCode,
       'address_complement': addressComplement,
+      'user_id': userId,
     };
   }
 }
@@ -45,15 +95,19 @@ class Company {
   final String id;
   final String name;
   final String slug;
-  final String? imageUrl;
+  final String? logoUrl; // MUDANÇA: de imageUrl para logoUrl
   final String? colorSite;
+  final double? latitude;
+  final double? longitude;
 
   Company({
     required this.id,
     required this.name,
     required this.slug,
-    this.imageUrl,
+    this.logoUrl, // MUDANÇA
     this.colorSite,
+    this.latitude,
+    this.longitude,
   });
 
   factory Company.fromJson(Map<String, dynamic> json) {
@@ -61,24 +115,16 @@ class Company {
       id: json['id']?.toString() ?? '',
       name: json['name'] ?? 'Nome Inválido',
       slug: json['slug'] ?? '',
-      imageUrl: json['image_url'],
+      logoUrl: json['logo_url'], // MUDANÇA: Mapeando do banco de dados
       colorSite: json['color_site'],
+      latitude: (json['latitude'] as num?)?.toDouble(),
+      longitude: (json['longitude'] as num?)?.toDouble(),
     );
   }
 }
 
-class SavedReport {
-  final String id;
-  final String name;
-  final DateTime createdAt;
-  SavedReport({required this.id, required this.name, required this.createdAt});
-  factory SavedReport.fromJson(Map<String, dynamic> json) {
-    return SavedReport(
-        id: json['id']?.toString() ?? '',
-        name: json['name'] ?? 'Relatório Inválido',
-        createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now());
-  }
-}
+// ... O resto do seu arquivo de modelos continua igual ...
+// (GrupoAdicional, Adicional, Category, Product, etc.)
 
 class GrupoAdicional {
   final String id;
@@ -87,6 +133,8 @@ class GrupoAdicional {
   final String? imageUrl;
   List<Adicional> adicionais;
   final int displayOrder;
+  final int minQuantity;
+  final int? maxQuantity;
 
   GrupoAdicional(
       {required this.id,
@@ -94,7 +142,9 @@ class GrupoAdicional {
       required this.produtoId,
       this.imageUrl,
       this.adicionais = const [],
-      required this.displayOrder});
+      required this.displayOrder,
+      required this.minQuantity,
+      this.maxQuantity});
 
   factory GrupoAdicional.fromJson(Map<String, dynamic> json) {
     List<Adicional> items = [];
@@ -110,7 +160,9 @@ class GrupoAdicional {
         produtoId: json['produto_id']?.toString() ?? '',
         imageUrl: json['image_url'],
         adicionais: items,
-        displayOrder: json['display_order'] ?? 0);
+        displayOrder: json['display_order'] ?? 0,
+        minQuantity: json['min_quantity'] ?? 0,
+        maxQuantity: json['max_quantity']);
   }
 }
 
@@ -199,29 +251,6 @@ class Product {
   }
 }
 
-class Table {
-  final String id;
-  final int tableNumber;
-  bool isOccupied;
-  bool isPartiallyPaid;
-
-  Table({
-    required this.id,
-    required this.tableNumber,
-    required this.isOccupied,
-    this.isPartiallyPaid = false,
-  });
-
-  factory Table.fromJson(Map<String, dynamic> jsonData) {
-    return Table(
-      id: jsonData['id']?.toString() ?? '',
-      tableNumber: jsonData['numero'] ?? 0,
-      isOccupied: jsonData['status'] == 'ocupada',
-      isPartiallyPaid: false,
-    );
-  }
-}
-
 class CartItemAdicional {
   final Adicional adicional;
   final int quantity;
@@ -256,68 +285,31 @@ class CartItem {
         0.0, (sum, item) => sum + (item.adicional.price * item.quantity));
     return (product.price + adicionaisPrice) * quantity;
   }
-
-  factory CartItem.fromJson(Map<String, dynamic> json) {
-    return CartItem(
-      id: json['id']?.toString() ?? '',
-      product: Product.fromJson(json['produtos'] ?? {}),
-      quantity: json['quantidade'] ?? 0,
-      selectedAdicionais: (json['adicionais_selecionados'] as List? ?? [])
-          .map((item) => CartItemAdicional.fromJson(item))
-          .toList(),
-      observacao: json['observacao'],
-    );
-  }
-
-  CartItem copyWith({
-    String? id,
-    Product? product,
-    int? quantity,
-    List<CartItemAdicional>? selectedAdicionais,
-    String? observacao,
-  }) {
-    return CartItem(
-      id: id ?? this.id,
-      product: product ?? this.product,
-      quantity: quantity ?? this.quantity,
-      selectedAdicionais: selectedAdicionais ?? this.selectedAdicionais,
-      observacao: observacao ?? this.observacao,
-    );
-  }
 }
 
-class DeliveryInfo {
+class Delivery {
   final String id;
   final int pedidoId;
-  final String nomeCliente;
-  final String telefoneCliente;
-  final String enderecoEntrega;
+  final int clienteId;
+  final String? locationLink;
+  final String companyId;
 
-  DeliveryInfo({
+  Delivery({
     required this.id,
     required this.pedidoId,
-    required this.nomeCliente,
-    required this.telefoneCliente,
-    required this.enderecoEntrega,
+    required this.clienteId,
+    this.locationLink,
+    required this.companyId,
   });
 
-  factory DeliveryInfo.fromJson(Map<String, dynamic> json) {
-    return DeliveryInfo(
-      id: json['id']?.toString() ?? '',
+  factory Delivery.fromJson(Map<String, dynamic> json) {
+    return Delivery(
+      id: json['id'] ?? '',
       pedidoId: json['pedido_id'] ?? 0,
-      nomeCliente: json['nome_cliente'] ?? '',
-      telefoneCliente: json['telefone_cliente'] ?? '',
-      enderecoEntrega: json['endereco_entrega'] ?? '',
+      clienteId: json['cliente_id'] ?? 0,
+      locationLink: json['location_link'],
+      companyId: json['company_id'] ?? '',
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'pedido_id': pedidoId,
-      'nome_cliente': nomeCliente,
-      'telefone_cliente': telefoneCliente,
-      'endereco_entrega': enderecoEntrega,
-    };
   }
 }
 
@@ -327,9 +319,10 @@ class Order {
   final DateTime timestamp;
   final String status;
   final String type;
-  final int? tableNumber;
-  final String? tableId;
-  final DeliveryInfo? deliveryInfo;
+  final String? observacao;
+  final String? userId;
+  final int? mesaId;
+  final Delivery? delivery;
 
   Order({
     required this.id,
@@ -337,162 +330,11 @@ class Order {
     required this.timestamp,
     required this.status,
     required this.type,
-    this.tableNumber,
-    this.tableId,
-    this.deliveryInfo,
+    this.observacao,
+    this.userId,
+    this.mesaId,
+    this.delivery,
   });
-
-  factory Order.fromJson(Map<String, dynamic> json) {
-    var itemsList = <CartItem>[];
-    if (json['itens_pedido'] is List) {
-      itemsList = (json['itens_pedido'] as List)
-          .map((itemJson) => CartItem.fromJson(itemJson))
-          .toList();
-    }
-
-    int? tableNum;
-    if (json['table_number'] != null) {
-      tableNum = (json['table_number'] as num?)?.toInt();
-    } else if (json['mesas'] is Map) {
-      tableNum = (json['mesas']['numero'] as num?)?.toInt();
-    }
-
-    DeliveryInfo? deliveryData;
-    if (json['delivery'] is List && (json['delivery'] as List).isNotEmpty) {
-      deliveryData = DeliveryInfo.fromJson((json['delivery'] as List).first);
-    } else if (json['delivery'] is Map) {
-      deliveryData = DeliveryInfo.fromJson(json['delivery']);
-    }
-
-    return Order(
-      id: json['id'] ?? 0,
-      items: itemsList,
-      timestamp:
-          DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-      status: json['status'] ?? 'production',
-      type: json['type'] ?? 'mesa',
-      tableNumber: tableNum,
-      tableId: (json['mesas'] is Map)
-          ? json['mesas']['id'].toString()
-          : json['mesa_id']?.toString(),
-      deliveryInfo: deliveryData,
-    );
-  }
 
   double get total => items.fold(0.0, (sum, item) => sum + item.totalPrice);
-}
-
-class Transaction {
-  final String id;
-  final int tableNumber;
-  final double totalAmount;
-  final DateTime timestamp;
-  final String paymentMethod;
-  final double discount;
-  final double surcharge;
-
-  Transaction({
-    required this.id,
-    required this.tableNumber,
-    required this.totalAmount,
-    required this.timestamp,
-    required this.paymentMethod,
-    required this.discount,
-    required this.surcharge,
-  });
-
-  factory Transaction.fromJson(Map<String, dynamic> jsonData) {
-    return Transaction(
-      id: jsonData['id']?.toString() ?? '',
-      tableNumber: jsonData['table_number'] ?? 0,
-      totalAmount: (jsonData['total_amount'] as num?)?.toDouble() ?? 0.0,
-      timestamp:
-          DateTime.tryParse(jsonData['created_at'] ?? '') ?? DateTime.now(),
-      paymentMethod: jsonData['payment_method'] ?? 'N/A',
-      discount: (jsonData['discount'] as num?)?.toDouble() ?? 0.0,
-      surcharge: (jsonData['surcharge'] as num?)?.toDouble() ?? 0.0,
-    );
-  }
-}
-
-class CustomSpreadsheet {
-  final String? id;
-  final String name;
-  final List<List<String>> sheetData;
-  final DateTime createdAt;
-
-  CustomSpreadsheet({
-    this.id,
-    required this.name,
-    required this.sheetData,
-    required this.createdAt,
-  });
-
-  factory CustomSpreadsheet.fromJson(Map<String, dynamic> json) {
-    List<List<String>> data = [];
-    if (json['sheet_data'] is List) {
-      data = (json['sheet_data'] as List)
-          .map((row) => (row as List).map((cell) => cell.toString()).toList())
-          .toList();
-    }
-
-    return CustomSpreadsheet(
-      id: json['id'],
-      name: json['name'] ?? '',
-      sheetData: data,
-      createdAt: DateTime.tryParse(json['created_at'] ?? '') ?? DateTime.now(),
-    );
-  }
-}
-
-class Estabelecimento {
-  final String? id;
-  final String nomeFantasia;
-  final String cnpj;
-  final String telefone;
-  final String rua;
-  final String numero;
-  final String bairro;
-  final String cidade;
-  final String estado;
-
-  Estabelecimento({
-    this.id,
-    required this.nomeFantasia,
-    required this.cnpj,
-    required this.telefone,
-    required this.rua,
-    required this.numero,
-    required this.bairro,
-    required this.cidade,
-    required this.estado,
-  });
-
-  factory Estabelecimento.fromJson(Map<String, dynamic> json) {
-    return Estabelecimento(
-      id: json['id'],
-      nomeFantasia: json['nome_fantasia'] ?? '',
-      cnpj: json['cnpj'] ?? '',
-      telefone: json['telefone'] ?? '',
-      rua: json['rua'] ?? '',
-      numero: json['numero'] ?? '',
-      bairro: json['bairro'] ?? '',
-      cidade: json['cidade'] ?? '',
-      estado: json['estado'] ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      if (id != null) 'id': id,
-      'nome_fantasia': nomeFantasia,
-      'cnpj': cnpj,
-      'telefone': telefone,
-      'rua': rua,
-      'numero': numero,
-      'bairro': bairro,
-      'cidade': cidade,
-      'estado': estado,
-    };
-  }
 }
