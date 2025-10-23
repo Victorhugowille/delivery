@@ -205,8 +205,8 @@ class CartScreen extends StatelessWidget {
                     ),
                   ),
                   onPressed: () {
-                    // MUDANÇA AQUI
-                    context.go('/$companyName/checkout');
+                    // Abre o bottom sheet para coletar nome e telefone
+                    _showContactBottomSheet(context);
                   },
                   child: const Text(
                     'Finalizar Pedido',
@@ -215,6 +215,95 @@ class CartScreen extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  // Novo BottomSheet para coletar Nome e Telefone
+  void _showContactBottomSheet(BuildContext context) {
+    final TextEditingController nameController = TextEditingController();
+    final TextEditingController phoneController = TextEditingController();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true, // Permite que o bottom sheet se ajuste ao teclado
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext bc) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(bc).viewInsets.bottom,
+            left: 16,
+            right: 16,
+            top: 24,
+          ),
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min, // Ocupa o mínimo de espaço vertical
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Seu Contato',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Seu Nome Completo',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                  validator: (value) =>
+                      (value?.isEmpty ?? true) ? 'Nome é obrigatório' : null,
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: phoneController,
+                  decoration: const InputDecoration(
+                    labelText: 'Telefone (WhatsApp)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.phone),
+                  ),
+                  keyboardType: TextInputType.phone,
+                  validator: (value) =>
+                      (value?.isEmpty ?? true) ? 'Telefone é obrigatório' : null,
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (formKey.currentState!.validate()) {
+                      Navigator.pop(bc); // Fecha o bottom sheet
+                      // Navega para a CheckoutScreen com os dados de contato
+                      context.go(
+                        '/$companyName/checkout',
+                        extra: {
+                          'clientName': nameController.text,
+                          'clientPhone': phoneController.text,
+                        },
+                      );
+                    }
+                  },
+                  child: const Text(
+                    'Continuar para Endereço',
+                    style: TextStyle(fontSize: 18),
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+            ),
           ),
         );
       },

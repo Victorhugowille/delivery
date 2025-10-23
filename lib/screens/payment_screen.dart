@@ -5,8 +5,8 @@ import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../models/models.dart' as model;
-import '../services/cart_service.dart';
+import '../models/models.dart' as model; // Importa os modelos
+import '../services/cart_service.dart'; // Importa o cartService
 
 class PaymentScreen extends StatefulWidget {
   final String companyName;
@@ -30,6 +30,7 @@ enum PaymentMethod { money, card, pix }
 
 class _PaymentScreenState extends State<PaymentScreen> {
   bool _isLoading = true;
+  bool _isSubmitting = false; 
   double _deliveryFee = 0.0;
   String _deliveryZoneName = "Calculando...";
   PaymentMethod? _selectedPaymentMethod;
@@ -131,12 +132,19 @@ class _PaymentScreenState extends State<PaymentScreen> {
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (_deliveryFee == 0 && _deliveryZoneName == "Fora da área de entrega") {
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Seu endereço está fora da nossa área de entrega.'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
 
     try {
       final cartItemsData = cartService.cartNotifier.value.map((item) {
         return {
-          // CORREÇÃO DA CHAVE JSON PARA GARANTIR CONSISTÊNCIA
           'product_id': item.product.id, 
           'quantidade': item.quantity,
           'observacao': item.observacao,
@@ -189,7 +197,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ));
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -205,7 +213,17 @@ class _PaymentScreenState extends State<PaymentScreen> {
     final total = subtotal + _deliveryFee;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Pagamento')),
+      appBar: AppBar(
+        title: const Text('Pagamento'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            }
+          },
+        ),
+      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -213,24 +231,125 @@ class _PaymentScreenState extends State<PaymentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Resumo do Pedido',
-                      style: Theme.of(context).textTheme.headlineSmall),
-                  const Divider(height: 24),
-                  _buildSummaryRow('Subtotal dos Itens:',
-                      'R\$ ${subtotal.toStringAsFixed(2)}'),
-                  const SizedBox(height: 8),
-                  _buildSummaryRow(
-                      'Taxa de Entrega ($_deliveryZoneName):', 'R\$ ${_deliveryFee.toStringAsFixed(2)}'),
-                  const Divider(height: 24),
-                  _buildSummaryRow('Total a Pagar:', 'R\$ ${total.toStringAsFixed(2)}',
-                      isTotal: true),
-                  const SizedBox(height: 32),
-                  Text('Forma de Pagamento',
-                      style: Theme.of(context).textTheme.headlineSmall),
-                  const Divider(height: 24),
-                  _buildPaymentOptions(),
-                  if (_selectedPaymentMethod == PaymentMethod.money)
-                    _buildChangeSection(total),
+                  // --- Detalhes da Entrega ---
+                  _buildSectionTitle(
+                    context,
+                    icon: Icons.person_pin_circle_outlined,
+                    title: 'Detalhes da Entrega',
+                  ),
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade300)
+                    ),
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading: Icon(Icons.person_outline, color: Theme.of(context).primaryColor),
+                          title: Text(widget.clientData['name'] ?? 'Nome não informado'),
+                          subtitle: Text(widget.clientData['phone'] ?? 'Telefone não informado'),
+                        ),
+                        const Divider(height: 1, indent: 16, endIndent: 16),
+                        ListTile(
+                          leading: Icon(Icons.location_on_outlined, color: Theme.of(context).primaryColor),
+                          title: Text("${widget.clientData['address_street'] ?? ''}, ${widget.clientData['address_number'] ?? 'S/N'}"),
+                          subtitle: Text("${widget.clientData['address_neighborhood'] ?? ''}, ${widget.clientData['address_city'] ?? ''}"),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- Itens do Pedido ---
+                  _buildSectionTitle(
+                    context,
+                    icon: Icons.receipt_long_outlined,
+                    title: 'Itens do Pedido',
+                  ),
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade300)
+                    ),
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: cartService.cartNotifier.value.length,
+                      itemBuilder: (context, index) {
+                        final item = cartService.cartNotifier.value[index];
+                        return _buildCartItemRow(item);
+                      },
+                      separatorBuilder: (context, index) => const Divider(height: 1, indent: 16, endIndent: 16),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- Resumo do Pedido ---
+                   _buildSectionTitle(
+                    context,
+                    icon: Icons.calculate_outlined,
+                    title: 'Resumo do Pedido',
+                  ),
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.grey.shade300)
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          _buildSummaryRow('Subtotal dos Itens:',
+                              'R\$ ${subtotal.toStringAsFixed(2)}'),
+                          const SizedBox(height: 8),
+                          _buildSummaryRow(
+                              'Taxa ($_deliveryZoneName):', 'R\$ ${_deliveryFee.toStringAsFixed(2)}'),
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 12.0),
+                            child: Divider(height: 1),
+                          ),
+                          _buildSummaryRow('Total a Pagar:', 'R\$ ${total.toStringAsFixed(2)}',
+                              isTotal: true),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  // --- Forma de Pagamento ---
+                   _buildSectionTitle(
+                    context,
+                    icon: Icons.payment_outlined,
+                    title: 'Forma de Pagamento',
+                  ),
+                  
+                  _buildPaymentOptionTile(
+                    icon: Icons.local_atm_outlined,
+                    title: 'Dinheiro',
+                    value: PaymentMethod.money,
+                  ),
+                  _buildPaymentOptionTile(
+                    icon: Icons.credit_card_outlined,
+                    title: 'Cartão (na entrega)',
+                    value: PaymentMethod.card,
+                  ),
+                  _buildPaymentOptionTile(
+                    icon: Icons.pix,
+                    title: 'PIX (na entrega)',
+                    value: PaymentMethod.pix,
+                  ),
+                  
+                  // --- Seção de Troco ---
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    child: _selectedPaymentMethod == PaymentMethod.money
+                        ? _buildChangeSection(total)
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
@@ -238,13 +357,88 @@ class _PaymentScreenState extends State<PaymentScreen> {
         padding: const EdgeInsets.all(16.0),
         child: ElevatedButton(
           style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16)),
-          onPressed: _isLoading ? null : _placeOrder,
-          child: _isLoading
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+          ),
+          onPressed: _isSubmitting ? null : _placeOrder,
+          child: _isSubmitting
               ? const CircularProgressIndicator(color: Colors.white)
-              : const Text('Confirmar Pedido', style: TextStyle(fontSize: 18)),
+              : const Text('Confirmar Pedido', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
       ),
+    );
+  }
+
+  //
+  // =======================================================================
+  // NOVO WIDGET ADICIONADO: _buildSectionTitle
+  // =======================================================================
+  //
+  /// Constrói um título de seção padronizado com ícone e linha
+  Widget _buildSectionTitle(BuildContext context, {required IconData icon, required String title}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0, top: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, color: Theme.of(context).primaryColor, size: 28),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(width: 8),
+          // Linha que preenche o espaço restante
+          const Expanded(
+            child: Divider(
+              height: 2,
+              thickness: 1,
+              color: Colors.black12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  // =======================================================================
+  // FIM DO NOVO WIDGET
+  // =======================================================================
+  //
+
+  /// Constrói uma linha para cada item do carrinho
+  Widget _buildCartItemRow(model.CartItem item) {
+    // Formata a lista de adicionais
+    final adicionaisText = item.selectedAdicionais
+        .map((ad) => '+ ${ad.adicional.name} (R\$ ${ad.adicional.price.toStringAsFixed(2)})') 
+        .join('\n');
+
+    return ListTile(
+      title: Text(
+        '${item.quantity}x ${item.product.name}',
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      trailing: Text(
+        'R\$ ${item.totalPrice.toStringAsFixed(2)}',
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+      subtitle: adicionaisText.isNotEmpty
+          ? Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Text(
+                adicionaisText,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey.shade700,
+                  fontStyle: FontStyle.italic,
+                  height: 1.4
+                ),
+              ),
+            )
+          : null,
+      isThreeLine: adicionaisText.isNotEmpty,
+      contentPadding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 16.0),
     );
   }
 
@@ -253,45 +447,68 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ? Theme.of(context)
             .textTheme
             .titleLarge
-            ?.copyWith(fontWeight: FontWeight.bold)
-        : Theme.of(context).textTheme.titleMedium;
+            ?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)
+        : Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey.shade700);
+    
+    final valueStyle = isTotal
+        ? Theme.of(context)
+            .textTheme
+            .titleLarge
+            ?.copyWith(fontWeight: FontWeight.bold, color: Theme.of(context).primaryColor)
+        : Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold);
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(title, style: style),
-        Text(value, style: style),
+        Text(value, style: valueStyle),
       ],
     );
   }
 
-  Widget _buildPaymentOptions() {
-    return Column(
-      children: [
-        RadioListTile<PaymentMethod>(
-          title: const Text('Dinheiro'),
-          value: PaymentMethod.money,
-          groupValue: _selectedPaymentMethod,
-          onChanged: (value) => setState(() => _selectedPaymentMethod = value),
+  Widget _buildPaymentOptionTile({
+    required IconData icon,
+    required String title,
+    required PaymentMethod value,
+  }) {
+    final bool isSelected = _selectedPaymentMethod == value;
+    final Color? primaryColor = isSelected ? Theme.of(context).primaryColor : null;
+    final Color borderColor = isSelected ? primaryColor! : Colors.grey.shade300;
+
+    return Card(
+      elevation: isSelected ? 1 : 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: borderColor, width: isSelected ? 2 : 1),
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 6.0),
+      child: InkWell(
+        onTap: () => setState(() => _selectedPaymentMethod = value),
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Row(
+            children: [
+              Icon(icon, color: primaryColor ?? Colors.grey.shade700, size: 28),
+              const SizedBox(width: 16),
+              Text(title, style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: primaryColor ?? Colors.black87,
+              )),
+              if (isSelected) ...[
+                const Spacer(),
+                Icon(Icons.check_circle, color: primaryColor),
+              ]
+            ],
+          ),
         ),
-        RadioListTile<PaymentMethod>(
-          title: const Text('Cartão (Maquininha)'),
-          value: PaymentMethod.card,
-          groupValue: _selectedPaymentMethod,
-          onChanged: (value) => setState(() => _selectedPaymentMethod = value),
-        ),
-        RadioListTile<PaymentMethod>(
-          title: const Text('PIX'),
-          value: PaymentMethod.pix,
-          groupValue: _selectedPaymentMethod,
-          onChanged: (value) => setState(() => _selectedPaymentMethod = value),
-        ),
-      ],
+      ),
     );
   }
 
   Widget _buildChangeSection(double total) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 24.0, left: 16, right: 16),
+    return Container(
+      padding: const EdgeInsets.only(top: 16.0),
       child: Column(
         children: [
           TextFormField(
@@ -308,12 +525,26 @@ class _PaymentScreenState extends State<PaymentScreen> {
           ),
           const SizedBox(height: 16),
           if (_changeAmount > 0)
-            Text(
-              'Seu troco será de R\$ ${_changeAmount.toStringAsFixed(2)}',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(color: Theme.of(context).primaryColor, fontWeight: FontWeight.bold),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).primaryColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                   Icon(Icons.change_circle_outlined, color: Theme.of(context).primaryColor),
+                   const SizedBox(width: 8),
+                   Text(
+                    'Seu troco será de R\$ ${_changeAmount.toStringAsFixed(2)}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(color: Theme.of(context).primaryColorDark, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
             )
         ],
       ),

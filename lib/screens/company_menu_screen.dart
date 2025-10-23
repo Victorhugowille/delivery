@@ -64,6 +64,7 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
           .from('categorias')
           .select()
           .eq('company_id', companyId)
+          .inFilter('app_type', ['delivery', 'todos']) 
           .order('display_order', ascending: true),
       supabase
           .from('produtos')
@@ -87,7 +88,7 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
     return CompanyPageData(
         company: company,
         destaques: destaquesList,
-        categories: categoryList,
+        categories: categoryList, // <-- Já vem filtrada do Supabase
         products: productList);
   }
 
@@ -114,6 +115,11 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
         final pageData = snapshot.data!;
         final company = pageData.company;
 
+        // ========== VERIFICAÇÃO ADICIONADA ==========
+        // Verifica se a lista de *categorias filtradas* está vazia
+        final bool hasCategories = pageData.categories.isNotEmpty;
+        // ===========================================
+
         return Scaffold(
           appBar: PreferredSize(
             preferredSize: const Size.fromHeight(kToolbarHeight),
@@ -132,18 +138,15 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
                             child: Container(
                               width: 40, // Tamanho do círculo
                               height: 40,
-                              color: Colors.white, // Fundo branco caso a imagem demore a carregar
+                              color: Colors.white, // Fundo branco
                               child: Image.network(
                                 company.logoUrl!,
                                 fit: BoxFit.cover,
-                                // Melhora a qualidade da imagem ao redimensionar
                                 filterQuality: FilterQuality.high,
-                                // Mostra um ícone enquanto carrega
                                 loadingBuilder: (context, child, progress) {
                                   if (progress == null) return child;
                                   return const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey)));
                                 },
-                                // Mostra um ícone de erro se falhar
                                 errorBuilder: (context, error, stack) => const Icon(Icons.store, color: Colors.grey),
                               ),
                             ),
@@ -165,8 +168,23 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHighlightsCarousel(pageData.destaques),
-              _buildCategoryList(pageData.categories, context),
-              _buildProductList(pageData.products),
+              // ========== LÓGICA ADICIONADA ==========
+              // Só mostra a lista de categorias se houver alguma
+              if (hasCategories)
+                _buildCategoryList(pageData.categories, context)
+              else
+                // Mostra um aviso se não houver categorias
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+                  child: Text(
+                    'Nenhuma categoria disponível para delivery no momento.',
+                    style: TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                ),
+              // ========================================
+
+              // Mostra os produtos (a lógica interna já lida com lista vazia)
+              _buildProductList(pageData.products, hasCategories),
             ],
           ),
           floatingActionButton: ValueListenableBuilder<List<model.CartItem>>(
@@ -204,6 +222,12 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
               destaque.imageUrl,
               fit: BoxFit.cover,
               width: 1000,
+              // Adiciona tratamento de erro e loading para imagens do carousel
+              loadingBuilder: (context, child, progress) {
+                if (progress == null) return child;
+                return Container(color: Colors.grey.shade200, child: const Center(child: CircularProgressIndicator()));
+              },
+              errorBuilder: (context, error, stack) => Container(color: Colors.grey.shade100, child: const Icon(Icons.error_outline, color: Colors.grey)),
             ),
           );
         },
@@ -239,8 +263,25 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
                 label: Text(category.name),
                 selected: isSelected,
                 onSelected: (selected) {
-                  if (selected) setState(() => _selectedCategoryId = category.id);
+                  // ========== AJUSTE AQUI ==========
+                  // Se desmarcar, limpa o filtro (_selectedCategoryId fica null)
+                  setState(() => _selectedCategoryId = selected ? category.id : null);
+                  // ==================================
                 },
+                 // Estilo opcional para destacar a seleção
+                 selectedColor: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                 labelStyle: TextStyle(
+                   color: isSelected ? Theme.of(context).colorScheme.primary : Colors.black87,
+                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                 ),
+                 shape: RoundedRectangleBorder(
+                   borderRadius: BorderRadius.circular(20),
+                   side: BorderSide(
+                     color: isSelected ? Theme.of(context).colorScheme.primary : Colors.grey.shade300,
+                   )
+                 ),
+                 backgroundColor: Colors.white,
+                 showCheckmark: false, // Opcional: remove o checkmark
               ),
             );
           },
@@ -249,21 +290,36 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
     );
   }
 
-  Widget _buildProductList(List<model.Product> allProducts) {
+  // Recebe 'hasCategories' para ajustar o layout se não houver categorias
+  Widget _buildProductList(List<model.Product> allProducts, bool hasCategories) {
+
+    // Se não há categorias, não precisa filtrar produtos,
+    // apenas mostra uma mensagem diferente.
+    if (!hasCategories && _selectedCategoryId == null) {
+       return const Expanded(
+          child: Center(
+              child: Text("Não há produtos disponíveis para delivery.",
+                  style: TextStyle(fontSize: 16))));
+    }
+
     final filteredProducts = _selectedCategoryId == null
-        ? allProducts
+        ? allProducts // Mostra todos se nenhuma categoria estiver selecionada
         : allProducts.where((p) => p.categoryId == _selectedCategoryId).toList();
 
     if (filteredProducts.isEmpty) {
-      return const Expanded(
+      return Expanded(
           child: Center(
-              child: Text("Nenhum produto encontrado nesta categoria.",
-                  style: TextStyle(fontSize: 16))));
+              child: Text(
+                // Mensagem muda se uma categoria foi selecionada ou não
+                _selectedCategoryId == null
+                 ? "Não há produtos disponíveis."
+                 : "Nenhum produto encontrado nesta categoria.",
+                  style: const TextStyle(fontSize: 16))));
     }
 
     return Expanded(
       child: ListView.builder(
-        padding: const EdgeInsets.fromLTRB(8, 16, 8, 96),
+        padding: const EdgeInsets.fromLTRB(8, 16, 8, 96), // Espaço para FAB
         itemCount: filteredProducts.length,
         itemBuilder: (context, index) {
           final product = filteredProducts[index];
@@ -275,8 +331,10 @@ class _CompanyMenuScreenState extends State<CompanyMenuScreen> {
       ),
     );
   }
-}
+} // Fim da classe _CompanyMenuScreenState
 
+
+// Widget do item da lista de produtos (sem alterações necessárias)
 class _ProductListItem extends StatelessWidget {
   final model.Product product;
   final VoidCallback onTap;
@@ -294,6 +352,14 @@ class _ProductListItem extends StatelessWidget {
           color: Colors.white,
           borderRadius: BorderRadius.circular(12.0),
           border: Border.all(color: Colors.grey.shade200, width: 1.5),
+          boxShadow: [ // Sombra sutil opcional
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 3,
+              offset: const Offset(0, 1),
+            ),
+          ]
         ),
         child: Row(
           children: [
@@ -308,6 +374,10 @@ class _ProductListItem extends StatelessWidget {
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) =>
                             _buildPlaceholder(),
+                         loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return Container(color: Colors.grey.shade100, child: const Center(child: CircularProgressIndicator(strokeWidth: 2)));
+                          },
                       )
                     : _buildPlaceholder(),
               ),

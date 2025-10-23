@@ -43,15 +43,19 @@ class AppRouter {
         },
       ),
       GoRoute(
-        path: '/:companyName/checkout',
-        builder: (context, state) {
-          final companyName = state.pathParameters['companyName'];
-          if (companyName != null) {
-            return CheckoutScreen(companyName: companyName);
-          }
-          return const NotFoundScreen();
-        },
-      ),
+         path: '/:companyName/checkout',
+           builder: (context, state) {
+            final String companyName = state.pathParameters['companyName']!;
+            final Map<String, dynamic> extra = state.extra as Map<String, dynamic>;
+            final String clientName = extra['clientName'];
+            final String clientPhone = extra['clientPhone'];
+         return CheckoutScreen(
+      companyName: companyName,
+      clientName: clientName,
+      clientPhone: clientPhone,
+    );
+  },
+),
       // NOVA ROTA DE PAGAMENTO
       GoRoute(
         path: '/:companyName/payment',
